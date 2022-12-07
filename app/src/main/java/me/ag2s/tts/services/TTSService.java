@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import me.ag2s.tts.APP;
 import me.ag2s.tts.BuildConfig;
@@ -49,6 +50,7 @@ import me.ag2s.tts.R;
 import me.ag2s.tts.utils.ByteArrayMediaDataSource;
 import me.ag2s.tts.utils.SU;
 import me.ag2s.tts.utils.GcManger;
+import okhttp3.CacheControl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -107,7 +109,7 @@ public class TTSService extends TextToSpeechService {
             TTSService.this.webSocket = null;
             webSocketState = WebSocketState.OFFLINE;
 
-            Log.e("SS", "SS:" + isSynthesizing);
+            CMN.debug("TTS服务-错误中", "isSynthesizing="+isSynthesizing);
             if (isSynthesizing) {
                 TTSService.this.webSocket = getOrCreateWs();
             }
@@ -596,6 +598,10 @@ public class TTSService extends TextToSpeechService {
                     //.header("Accept-Encoding", "gzip, deflate")
                     .header("User-Agent", Constants.EDGE_UA)
                     .addHeader("Origin", origin)
+					.cacheControl(new CacheControl.Builder()
+							.maxAge(0, TimeUnit.SECONDS)
+							.maxStale(365,TimeUnit.DAYS).build())
+					//.header("Cache-Control", "public, only-if-cached, max-stale=" + maxStale)
                     .build();
             webSocketState = WebSocketState.CONNECTING;
             this.webSocket = client.newWebSocket(request, webSocketListener);
