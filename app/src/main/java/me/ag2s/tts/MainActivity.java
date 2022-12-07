@@ -159,9 +159,9 @@ public class MainActivity extends Activity implements View.OnClickListener, Seek
         Toast.makeText(this, "选择预览版语音时,如果卡住了，杀掉应用重进！！！", Toast.LENGTH_LONG).show();
 
 
-        if (APP.getBoolean(Constants.USE_AUTO_UPDATE, true)) {
-            checkUpdate();
-        }
+//        if (APP.getBoolean(Constants.USE_AUTO_UPDATE, true)) {
+//            checkUpdate();
+//        }
 
 
     }
@@ -302,7 +302,7 @@ public class MainActivity extends Activity implements View.OnClickListener, Seek
         HttpTool.executorService.submit(() -> {
             try {
                 String url = "https://api.github.com/repos/ag2s20150909/tts/releases/latest";
-                String s = HttpTool.httpGet(url);
+                String s = HttpTool.httpGet(url); // checkUpdate
                 //Log.e(TAG, s);
                 JSONObject json = new JSONObject(s);
                 String tag = json.getString("tag_name");

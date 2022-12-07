@@ -16,7 +16,7 @@ import java.util.Locale;
 
 import me.ag2s.tts.R;
 import me.ag2s.tts.services.TtsActor;
-import me.ag2s.tts.utils.CommonTool;
+import me.ag2s.tts.utils.SU;
 
 public class TtsActorAdapter extends RecyclerView.Adapter<TtsActorAdapter.ViewHolder> {
     public interface OnItemClickListener {
@@ -83,7 +83,7 @@ public class TtsActorAdapter extends RecyclerView.Adapter<TtsActorAdapter.ViewHo
         holder.tv_title.setText(data.getName());
         Locale locale = data.getLocale();
         //locale.getDisplayCountry(Locale.getDefault());
-        holder.tv_des.setText(String.format("%s%s\n%s", CommonTool.localeToEmoji(locale), locale.getDisplayLanguage(Locale.getDefault()), data.getNote()));
+        holder.tv_des.setText(String.format("%s%s\n%s", SU.localeToEmoji(locale), locale.getDisplayLanguage(Locale.getDefault()), data.getNote()));
         if (data.getGender()) {
             holder.iv_flag.setImageResource(R.drawable.ic_woman);
             //holder.tv_title.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_woman,0,0,0);

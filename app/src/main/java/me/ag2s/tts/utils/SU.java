@@ -12,9 +12,10 @@ import java.util.regex.Pattern;
 
 import okio.ByteString;
 
-public class CommonTool {
+public class SU {
 
-    static final Pattern NoVoicePattern = Pattern.compile("[\\s\\p{C}\\p{P}\\p{Z}\\p{S}]");
+    static final Pattern NoVoicePattern = Pattern.compile("[\\s\\p{C}\\p{P}\\p{Z}\\p{S} ]");
+    //static final Pattern NoVoicePattern = Pattern.compile("^[\\s\\p{C}\\p{P}\\p{Z}\\p{S} ]+$");
     static final SimpleDateFormat sdf = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss 'GMT'Z", Locale.ENGLISH);
 
 
@@ -66,6 +67,7 @@ public class CommonTool {
 
 
     public static boolean isNoVoice(CharSequence charSequence) {
+        //return NoVoicePattern.matcher(charSequence).matches();
         return NoVoicePattern.matcher(charSequence).replaceAll("").isEmpty();
     }
 

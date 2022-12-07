@@ -5938,7 +5938,7 @@ androidx.recyclerview.widget.RecyclerView$Recycler -> j.y0:
     101:101:void androidx.recyclerview.widget.RecyclerView$Adapter.bindViewHolder(androidx.recyclerview.widget.RecyclerView$ViewHolder,int):0 -> i
     101:101:boolean androidx.recyclerview.widget.RecyclerView$Recycler.tryBindViewHolderByDeadline(androidx.recyclerview.widget.RecyclerView$ViewHolder,int,int,long):0 -> i
     101:101:androidx.recyclerview.widget.RecyclerView$ViewHolder tryGetViewHolderForPositionByDeadline(int,boolean,long):0 -> i
-    102:102:java.lang.String me.ag2s.tts.utils.CommonTool.localeToEmoji(java.util.Locale):0:0 -> i
+    102:102:java.lang.String me.ag2s.tts.utils.SU.localeToEmoji(java.util.Locale):0:0 -> i
     102:102:void me.ag2s.tts.adapters.TtsActorAdapter.onBindViewHolder(me.ag2s.tts.adapters.TtsActorAdapter$ViewHolder,int):0 -> i
     102:102:void me.ag2s.tts.adapters.TtsActorAdapter.onBindViewHolder(androidx.recyclerview.widget.RecyclerView$ViewHolder,int):0 -> i
     102:102:void androidx.recyclerview.widget.RecyclerView$Adapter.onBindViewHolder(androidx.recyclerview.widget.RecyclerView$ViewHolder,int,java.util.List):0 -> i
@@ -8704,10 +8704,10 @@ me.ag2s.tts.services.SSML -> e0.a:
     java.lang.StringBuilder content -> f
     java.lang.String id -> b
     java.lang.String name -> d
-    30:40:java.lang.String me.ag2s.tts.utils.CommonTool.getTime():0:0 -> <init>
+    30:40:java.lang.String me.ag2s.tts.utils.SU.getTime():0:0 -> <init>
     30:40:void <init>(android.speech.tts.SynthesisRequest,java.lang.String,me.ag2s.tts.services.TtsStyle,boolean,boolean):0 -> <init>
     41:142:void <init>(android.speech.tts.SynthesisRequest,java.lang.String,me.ag2s.tts.services.TtsStyle,boolean,boolean):0:0 -> <init>
-    49:59:java.lang.String me.ag2s.tts.utils.CommonTool.getTime():0:0 -> a
+    49:59:java.lang.String me.ag2s.tts.utils.SU.getTime():0:0 -> a
     49:59:me.ag2s.tts.services.SSML getInstance(android.speech.tts.SynthesisRequest,java.lang.String,me.ag2s.tts.services.TtsStyle,boolean,boolean):0 -> a
     60:125:me.ag2s.tts.services.SSML getInstance(android.speech.tts.SynthesisRequest,java.lang.String,me.ag2s.tts.services.TtsStyle,boolean,boolean):0:0 -> a
     150:174:me.ag2s.tts.services.TtsDictManger me.ag2s.tts.services.TtsDictManger.getInstance():0:0 -> b
@@ -8723,7 +8723,7 @@ me.ag2s.tts.services.SSML -> e0.a:
     199:200:java.lang.String me.ag2s.tts.services.TtsDict.getWorld():0:0 -> b
     199:200:void handleContent():0 -> b
     201:206:void handleContent():0:0 -> b
-    207:233:void me.ag2s.tts.utils.CommonTool.replaceAll(java.lang.StringBuilder,java.lang.String,java.lang.String):0:0 -> b
+    207:233:void me.ag2s.tts.utils.SU.replaceAll(java.lang.StringBuilder,java.lang.String,java.lang.String):0:0 -> b
     207:233:void handleContent():0 -> b
     234:235:void handleContent():0:0 -> b
     236:237:java.lang.String me.ag2s.tts.services.TtsDict.getWorld():0:0 -> b
@@ -8775,7 +8775,7 @@ me.ag2s.tts.services.TTSService -> me.ag2s.tts.services.TTSService:
     127:131:okhttp3.WebSocket getOrCreateWs():0 -> b
     132:141:okhttp3.WebSocket getOrCreateWs():0:0 -> b
     void reNewWakeLock() -> c
-    14:24:java.lang.String me.ag2s.tts.utils.CommonTool.getTime():0:0 -> d
+    14:24:java.lang.String me.ag2s.tts.utils.SU.getTime():0:0 -> d
     14:24:void sendConfig(okhttp3.WebSocket,me.ag2s.tts.services.TtsConfig):0 -> d
     25:39:void sendConfig(okhttp3.WebSocket,me.ag2s.tts.services.TtsConfig):0:0 -> d
     40:49:me.ag2s.tts.services.TtsOutputFormat me.ag2s.tts.services.TtsConfig.getFormat():0:0 -> d
@@ -8874,7 +8874,7 @@ me.ag2s.tts.services.TTSService -> me.ag2s.tts.services.TTSService:
     33:34:int onLoadVoice(java.lang.String):0 -> onLoadVoice
     35:48:me.ag2s.tts.services.TtsActor me.ag2s.tts.services.TtsActorManger.getByName(java.lang.String):0:0 -> onLoadVoice
     35:48:int onLoadVoice(java.lang.String):0 -> onLoadVoice
-    58:79:boolean me.ag2s.tts.utils.CommonTool.isNoVoice(java.lang.CharSequence):0:0 -> onSynthesizeText
+    58:79:boolean me.ag2s.tts.utils.SU.isNoVoice(java.lang.CharSequence):0:0 -> onSynthesizeText
     58:79:void onSynthesizeText(android.speech.tts.SynthesisRequest,android.speech.tts.SynthesisCallback):0 -> onSynthesizeText
     80:157:void onSynthesizeText(android.speech.tts.SynthesisRequest,android.speech.tts.SynthesisCallback):0:0 -> onSynthesizeText
 me.ag2s.tts.services.TtsActor -> e0.b:
@@ -9230,7 +9230,7 @@ me.ag2s.tts.services.TtsStyleManger -> e0.k:
     16:28:void me.ag2s.tts.services.TTSService$1.onOpen(okhttp3.WebSocket,okhttp3.Response):0:0 -> d
 me.ag2s.tts.utils.ByteArrayMediaDataSource -> f0.a:
     byte[] data -> a
-me.ag2s.tts.utils.CommonTool -> f0.b:
+me.ag2s.tts.utils.SU -> f0.b:
     java.util.regex.Pattern NoVoicePattern -> a
     java.text.SimpleDateFormat sdf -> b
     void Trim(java.lang.StringBuilder) -> a
@@ -9286,10 +9286,10 @@ me.ag2s.tts.utils.HttpTool -> f0.d:
     184:184:java.lang.String httpGet(java.lang.String):0:0 -> a
     185:185:java.lang.String httpGet(java.lang.String):0:0 -> a
     140:144:java.lang.String httpGet(java.lang.String):0:0 -> a
-    145:164:java.lang.String me.ag2s.tts.utils.CommonTool.getStackTrace(java.lang.Throwable):0:0 -> a
+    145:164:java.lang.String me.ag2s.tts.utils.SU.getStackTrace(java.lang.Throwable):0:0 -> a
     145:164:java.lang.String httpGet(java.lang.String):0 -> a
     165:173:java.lang.String httpGet(java.lang.String):0:0 -> a
-    174:182:java.lang.String me.ag2s.tts.utils.CommonTool.getStackTrace(java.lang.Throwable):0:0 -> a
+    174:182:java.lang.String me.ag2s.tts.utils.SU.getStackTrace(java.lang.Throwable):0:0 -> a
     174:182:java.lang.String httpGet(java.lang.String):0 -> a
 okhttp3.Address -> g0.a:
     javax.net.SocketFactory socketFactory -> b

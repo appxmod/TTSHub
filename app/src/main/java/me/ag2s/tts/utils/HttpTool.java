@@ -59,7 +59,7 @@ public class HttpTool {
                 return HTTP_ERROR + response.message() + " errorCode:" + response.code();
             }
         } catch (Exception e) {
-            return HTTP_ERROR + CommonTool.getStackTrace(e);
+            return HTTP_ERROR + SU.getStackTrace(e);
         }
     }
 
@@ -81,7 +81,7 @@ public class HttpTool {
                 return HTTP_ERROR + response.message() + " errorCode:" + response.code();
             }
         } catch (Exception e) {
-            return HTTP_ERROR + CommonTool.getStackTrace(e);
+            return HTTP_ERROR + SU.getStackTrace(e);
         }
     }
 
@@ -115,7 +115,7 @@ public class HttpTool {
                 return HTTP_ERROR + response.message() + " errors:" + response.code();
             }
         } catch (Exception e) {
-            return HTTP_ERROR + CommonTool.getStackTrace(e);
+            return HTTP_ERROR + SU.getStackTrace(e);
         }
 
     }
@@ -172,7 +172,7 @@ public class HttpTool {
                 return HTTP_ERROR + response.message() + " errors:" + response.code();
             }
         } catch (Exception e) {
-            return HTTP_ERROR + CommonTool.getStackTrace(e);
+            return HTTP_ERROR + SU.getStackTrace(e);
         }
 
     }

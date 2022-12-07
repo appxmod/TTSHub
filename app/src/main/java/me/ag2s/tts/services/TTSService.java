@@ -1,7 +1,7 @@
 package me.ag2s.tts.services;
 
 import static me.ag2s.tts.APP.getOkHttpClient;
-import static me.ag2s.tts.utils.CommonTool.getTime;
+import static me.ag2s.tts.utils.SU.getTime;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -44,9 +44,10 @@ import java.util.Set;
 
 import me.ag2s.tts.APP;
 import me.ag2s.tts.BuildConfig;
+import me.ag2s.tts.CMN;
 import me.ag2s.tts.R;
 import me.ag2s.tts.utils.ByteArrayMediaDataSource;
-import me.ag2s.tts.utils.CommonTool;
+import me.ag2s.tts.utils.SU;
 import me.ag2s.tts.utils.GcManger;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -125,6 +126,7 @@ public class TTSService extends TextToSpeechService {
                 TTSService.this.webSocket = getOrCreateWs();
             }
             updateNotification("TTS服务-错误中", t.getMessage());
+			CMN.debug("TTS服务-错误中", t);
 
             //APP.showToast("发生错误:" + t.getMessage());
 
@@ -295,10 +297,8 @@ public class TTSService extends TextToSpeechService {
         if (content == null || content.isEmpty()) {
             return;
         }
-        StringBuilder sb = new StringBuilder(content);
-        CommonTool.Trim(sb);
-        notificationBuilder.setContentTitle(title);
-        notificationBuilder.setContentText(sb.toString());
+		notificationBuilder.setContentTitle(title);
+        notificationBuilder.setContentText(content);
         notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
     }
 
@@ -578,8 +578,11 @@ public class TTSService extends TextToSpeechService {
             String origin;
 //                    if (TokenHolder.token != null && APP.getBoolean(Constants.USE_PREVIEW, false)) {
             if (APP.getBoolean(Constants.USE_PREVIEW, false)) {
-                //url = "wss://eastus.tts.speech.microsoft.com/cognitiveservices/websocket/v1?Authorization=bearer " + TokenHolder.token + "&X-ConnectionId=" + CommonTool.getMD5String(new Date().toString());
-                url = "wss://eastus.api.speech.microsoft.com/cognitiveservices/websocket/v1?TrafficType=AzureDemo&Authorization=bearer undefined&X-ConnectionId=" + CommonTool.getMD5String(new Date().toString());
+//                url = "wss://eastus.tts.speech.microsoft.com/cognitiveservices/websocket/v1?Authorization=bearer " + TokenHolder.token + "&X-ConnectionId=" + SU.getMD5String(new Date().toString());
+//                url = "wss://eastus.api.speech.microsoft.com/cognitiveservices/websocket/v1?TrafficType=AzureDemo&Authorization=bearer undefined&X-ConnectionId=" + SU.getMD5String(new Date().toString());
+//                url = "wss://eastasia.api.speech.microsoft.com/cognitiveservices/websocket/v1?TrafficType=AzureDemo&Authorization=bearer undefined&X-ConnectionId=" + SU.getMD5String(new Date().toString());
+//                url = "wss://japaneast.api.speech.microsoft.com/cognitiveservices/websocket/v1?TrafficType=AzureDemo&Authorization=bearer undefined&X-ConnectionId=" + SU.getMD5String(new Date().toString());
+                url = "wss://koreacentral.api.speech.microsoft.com/cognitiveservices/websocket/v1?TrafficType=AzureDemo&Authorization=bearer undefined&X-ConnectionId=" + SU.getMD5String(new Date().toString());
                 origin = "https://azure.microsoft.com";
                 isPreview = true;
             } else {
@@ -622,9 +625,9 @@ public class TTSService extends TextToSpeechService {
     /**
      * 发送合成text请求
      *
-     * @param request 需要合成的txt
+     * @param sReq 需要合成的txt
      */
-    public synchronized void sendText(@NonNull SynthesisRequest request, @NonNull SynthesisCallback callback) {
+    public synchronized void sendText(@NonNull SyntheticalRequest sReq, @NonNull SynthesisCallback callback) {
 //
 //        Bundle bundle = request.getParams();
 //        Set<String> keySet = bundle.keySet();
@@ -632,6 +635,7 @@ public class TTSService extends TextToSpeechService {
 //            Log.e(TAG, key + "__" + bundle.get(key));
 //        }
 
+		final SynthesisRequest request = sReq.request;
         //设置发送的音质
         int index = APP.getInt(Constants.AUDIO_FORMAT_INDEX, 0);
 
@@ -658,8 +662,8 @@ public class TTSService extends TextToSpeechService {
             sendConfig(getOrCreateWs(), ttsConfig);
             oldFormatIndex = index;
         }
-        SSML ssml = SSML.getInstance(request, name, ttsStyle, useDict, isPreview);
-        Log.e(TAG, ssml.toString());
+        SSML ssml = SSML.getInstance(sReq, name, ttsStyle, useDict, isPreview);
+        CMN.debug(ssml.toString());
         //在Google Play图书之类应用会闪退，应该及时调用该方法
         callback.start(currentFormat.HZ,
                 currentFormat.BitRate, 1 /* Number of channels. */);
@@ -672,6 +676,7 @@ public class TTSService extends TextToSpeechService {
                 getOrCreateWs().send(ssml.toString());
             }
         } catch (Exception e) {
+			CMN.debug(e);
             getOrCreateWs();
             while (this.webSocket == null) {
                 try {
@@ -843,7 +848,70 @@ public class TTSService extends TextToSpeechService {
         updateNotification("TTS服务-停止中", "调用onStop，停止生成。");
 
     }
-
+	
+	public static class SyntheticalRequest {
+		final SynthesisRequest request;
+		final CharSequence text;
+		String id;
+		StringBuilder sb = new StringBuilder();
+		public SyntheticalRequest(SynthesisRequest request) {
+			this.request = request;
+			this.text = request.getCharSequenceText();
+		}
+		
+		public String makeNotification() {
+			sb.setLength(0);
+			sb.append(text, 0, Math.min(text.length(), 72));
+			SU.Trim(sb);
+			String ret = sb.toString();
+			id = sb.append(CMN.now()).toString();
+			return ret;
+		}
+		
+		/** 处理文本  */
+		public String makeUtterance(SSML ssml) {
+			sb.setLength(0);
+			sb.append(text);
+			SU.replace(sb, "\n", " ");
+			SU.Trim(sb);
+			SU.replace(sb, "&", "&amp;");
+			SU.replace(sb, "\"", "&quot;");
+			SU.replace(sb, "'", "&apos;");
+			SU.replace(sb, ">", "&lt;");
+			SU.replace(sb, "<", "&gt;");
+			//是否分段
+			if (APP.getBoolean(Constants.SPLIT_SENTENCE, false) && ssml.usePre) {
+				String temp = sb.toString();
+				temp = ssml.p0.matcher(temp).replaceAll("$1");//把常用的影响分句的重复符号合并
+				temp = ssml.p1.matcher(temp).replaceAll("$1</p><p>$2");//单字符断句符,排除后面有引号的情况
+				temp = ssml.p2.matcher(temp).replaceAll("<break strength='strong' />$2");//中英文省略号停顿处理
+				temp = ssml.p3.matcher(temp).replaceAll("$1</p><p>$2");//多字符断句符，后面有引号的的情况
+//				if (name.startsWith("zh-CN")) {
+//					//temp = p4.matcher(temp).replaceAll("<phoneme alphabet='sapi' ph='chong 2'>重</phoneme>");
+//				}
+				sb = new StringBuilder(temp);
+				GcManger.getInstance().doGC();
+			}
+			//是否使用字典
+			if (ssml.useDict) {
+				List<TtsDict> dictList = TtsDictManger.getInstance().getDict();
+				for (TtsDict dict : dictList) {
+					if (dict.isRegex()) {
+						SU.replaceAll(sb, dict.getWorld(), dict.getXML(ssml.name));
+					} else {
+						SU.replace(sb, dict.getWorld(), dict.getXML(ssml.name));
+					}
+				}
+			}
+			return sb.toString();
+		}
+		
+		public String getId() {
+			if (id == null)
+				makeNotification();
+			return id;
+		}
+	}
 
     /**
      * 将指定的文字，合成为tts音频流
@@ -858,14 +926,15 @@ public class TTSService extends TextToSpeechService {
                 request.getVariant());
         if (load == TextToSpeech.LANG_NOT_SUPPORTED) {
             callback.error(TextToSpeech.ERROR_INVALID_REQUEST);
-            Log.e(TAG, "语言不支持:" + request.getLanguage());
+            CMN.debug("语言不支持:" + request.getLanguage());
             return;
         }
 
-
+		final SyntheticalRequest sReq = new SyntheticalRequest(request);
+		
         isSynthesizing = true;
-        //判断是否全是不发声字符，如果是，直接跳过
-        if (CommonTool.isNoVoice(request.getCharSequenceText())) {
+        if (SU.isNoVoice(sReq.text)) {
+			CMN.debug("判断是否全是不发声字符，如果是，直接跳过");
             callback.start(16000,
                     AudioFormat.ENCODING_PCM_16BIT, 1 /* Number of channels. */);
             callback.done();
@@ -876,21 +945,22 @@ public class TTSService extends TextToSpeechService {
         long startTime = SystemClock.elapsedRealtime();
 
         synchronized (TTSService.this) {
-
             isSynthesizing = true;
-            sendText(request, callback);
-            updateNotification("TTS服务-生成中", request.getCharSequenceText().toString());
-
+            sendText(sReq, callback);
+	
+			String notes = sReq.makeNotification();
+			CMN.debug("TTS服务-生成中", notes);
+			updateNotification("TTS服务-生成中", notes);
 
             while (isSynthesizing) {
                 try {
                     this.wait(100);
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    CMN.debug(e);
                 }
                 long time = SystemClock.elapsedRealtime() - startTime;
-                //超时50秒后跳过,保证长句不会被跳过
                 if (time > 50000) {
+					CMN.debug("超时50秒后跳过,保证长句不会被跳过");
                     callback.done();
                     isSynthesizing = false;
                 }
@@ -899,9 +969,7 @@ public class TTSService extends TextToSpeechService {
         }
         isSynthesizing = false;
 
-        updateNotification("TTS服务-闲置中", "当前没有生成任务");
-
-
+        CMN.debug("TTS服务-闲置中", "当前没有生成任务");
     }
 
 

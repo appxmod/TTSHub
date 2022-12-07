@@ -5,13 +5,10 @@ import android.speech.tts.SynthesisRequest;
 import androidx.annotation.NonNull;
 
 import java.lang.ref.WeakReference;
-import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-import me.ag2s.tts.APP;
-import me.ag2s.tts.utils.CommonTool;
-import me.ag2s.tts.utils.GcManger;
+import me.ag2s.tts.utils.SU;
 
 public class SSML {
 
@@ -58,7 +55,7 @@ public class SSML {
     /**
      * 发音角色
      */
-    private String name;
+	String name;
 
     /**
      * 发音风格
@@ -68,24 +65,25 @@ public class SSML {
     /**
      * 发音内容
      */
-    private StringBuilder content;
+    private TTSService.SyntheticalRequest content;
 
     private short pitch;
     private short rate;
-    private boolean useDict;
+    boolean useDict;
     //是否使用预览版
-    private boolean usePre;
+	boolean usePre;
 
     private static SSML instance;
 
 
-    private SSML(SynthesisRequest request, String name, TtsStyle ttsStyle, boolean useDict, boolean usePre) {
-        this.content = new StringBuilder(request.getCharSequenceText());
+    private SSML(TTSService.SyntheticalRequest sReq, String name, TtsStyle ttsStyle, boolean useDict, boolean usePre) {
+		final SynthesisRequest request = sReq.request;
+        this.content = sReq;
         this.useDict = useDict;
         this.usePre = usePre;
         this.name = name;
         this.style = new WeakReference<>(ttsStyle);
-        this.time = CommonTool.getTime();
+        this.time = SU.getTime();
         this.pitch = (short) (request.getPitch() - 100);
         this.rate = (short) (request.getSpeechRate());
         Locale locale = Locale.getDefault();
@@ -94,74 +92,36 @@ public class SSML {
         }
 
         this.lang = locale.getLanguage() + "-" + locale.getCountry();
-        this.id = CommonTool.getMD5String(request.getCharSequenceText() + "" + System.currentTimeMillis());
+        this.id = SU.getMD5String(sReq.getId());
         this.useDict = useDict;
         handleContent();
-
     }
 
-    public static SSML getInstance(SynthesisRequest request, String name, TtsStyle ttsStyle, boolean useDict, boolean usePre) {
-        if (instance == null) {
-            instance = new SSML(request, name, ttsStyle, useDict, usePre);
+    public static SSML getInstance(TTSService.SyntheticalRequest sReq, String name, TtsStyle ttsStyle, boolean useDict, boolean usePre) {
+		final SynthesisRequest request = sReq.request;
+		if (instance == null) {
+            instance = new SSML(sReq, name, ttsStyle, useDict, usePre);
         } else {
-            instance.content = new StringBuilder(request.getCharSequenceText());
+            instance.content = sReq;
             instance.useDict = useDict;
             instance.usePre = usePre;
             instance.name = name;
             instance.style = new WeakReference<>(ttsStyle);
-            instance.time = CommonTool.getTime();
+            instance.time = SU.getTime();
             instance.pitch = (short) (request.getPitch() - 100);
             instance.rate = (short) (request.getSpeechRate());
-            instance.id = CommonTool.getMD5String(request.getCharSequenceText() + "" + System.currentTimeMillis());
+            instance.id = SU.getMD5String(sReq.getId());
             instance.handleContent();
         }
         return instance;
     }
-
-
-    /**
-     * 处理文本
-     */
-    private void handleContent() {
-        CommonTool.replace(content, "\n", " ");
-        CommonTool.Trim(content);
-        CommonTool.replace(content, "&", "&amp;");
-        CommonTool.replace(content, "\"", "&quot;");
-        CommonTool.replace(content, "'", "&apos;");
-        CommonTool.replace(content, ">", "&lt;");
-        CommonTool.replace(content, "<", "&gt;");
-        //是否分段
-        if (APP.getBoolean(Constants.SPLIT_SENTENCE, false) && usePre) {
-            String temp = content.toString();
-            temp = p0.matcher(temp).replaceAll("$1");//把常用的影响分句的重复符号合并
-            temp = p1.matcher(temp).replaceAll("$1</p><p>$2");//单字符断句符,排除后面有引号的情况
-            temp = p2.matcher(temp).replaceAll("<break strength='strong' />$2");//中英文省略号停顿处理
-            temp = p3.matcher(temp).replaceAll("$1</p><p>$2");//多字符断句符，后面有引号的的情况
-//            if (name.startsWith("zh-CN")) {
-//                //temp = p4.matcher(temp).replaceAll("<phoneme alphabet='sapi' ph='chong 2'>重</phoneme>");
-//            }
-            content = new StringBuilder(temp);
-            GcManger.getInstance().doGC();
-        }
-
-        //是否使用字典
-        if (useDict) {
-            List<TtsDict> dictList = TtsDictManger.getInstance().getDict();
-            for (TtsDict dict : dictList) {
-                if (dict.isRegex()) {
-                    CommonTool.replaceAll(content, dict.getWorld(), dict.getXML(name));
-                } else {
-                    CommonTool.replace(content, dict.getWorld(), dict.getXML(name));
-                }
-
-            }
-        }
-
-
-    }
-
-
-    @NonNull
+	
+	private void handleContent() {
+	
+	}
+	
+	
+	@NonNull
     @Override
     public String toString() {
         String rateString = rate / 100 + "." + rate % 100;
@@ -187,12 +147,12 @@ public class SSML {
             sb.append("<lang xml:lang=\"").append(lang).append("\">");
         }
         sb.append("<prosody pitch=\"").append(pitch).append("%\" ").append("rate=\"").append(rateString).append("\" ").append("volume=\"").append(style.get().getVolume()).append("\">");
-
+		
+		final String text = content.makeUtterance(this);
         if (usePre) {
-            sb.append("<mstts:express-as  style=\"").append(style.get().value).append("\" styledegree=\"").append(style.get().getStyleDegree()).append("\" ><p>").append(content.toString()).append("</p></mstts:express-as>");
+            sb.append("<mstts:express-as  style=\"").append(style.get().value).append("\" styledegree=\"").append(style.get().getStyleDegree()).append("\" ><p>").append(text).append("</p></mstts:express-as>");
         } else {
-            sb.append("").append(content.toString()).append("");
-
+            sb.append("").append(text).append("");
         }
 
 
