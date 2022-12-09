@@ -29,7 +29,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "me.ag2s.tts"
+        applicationId "org.appxmod.ttshub"
         minSdk 21
         targetSdk 33
         versionCode 1

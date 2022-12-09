@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name">TTS</string>
+    <string name="app_name">TTSHub</string>
 
     <string name="tts_sample_default">这是语音合成示例。This is an example of speech synthesis.</string>
     <string name="tts_sample_en">This is an example of speech synthesis.</string>
