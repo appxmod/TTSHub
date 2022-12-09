@@ -489,7 +489,7 @@ public class TTSService extends TextToSpeechService {
                 //获取可用的inputBuffer，输入参数-1代表一直等到，0代表不等待，10*1000代表10秒超时
                 //超时时间10秒
 
-                int inputIndex = mediaCodec.dequeueInputBuffer(TIME_OUT_US);
+                int inputIndex = mediaCodec.dequeueInputBuffer(15000);
                 if (inputIndex < 0) {
                     break;
                 }
