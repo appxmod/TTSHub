@@ -67,6 +67,7 @@ public class SU {
 
 
     public static boolean isNoVoice(CharSequence charSequence) {
+		//return false;
         //return NoVoicePattern.matcher(charSequence).matches();
         return NoVoicePattern.matcher(charSequence).replaceAll("").isEmpty();
     }

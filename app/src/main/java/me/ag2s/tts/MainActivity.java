@@ -333,7 +333,6 @@ public class MainActivity extends Activity implements View.OnClickListener, Seek
 
     private void downLoadAndInstall(String body, String downloadUrl, String tag) {
         try {
-
             runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
                     .setTitle("有新版本")
                     .setMessage("发现新版本:" + tag + "\n" + body)
@@ -378,7 +377,6 @@ public class MainActivity extends Activity implements View.OnClickListener, Seek
                 startActivity(intent);
             }
         }
-
     }
 
 
@@ -410,7 +408,6 @@ public class MainActivity extends Activity implements View.OnClickListener, Seek
                 updateView();
             }
         }
-
     }
 
 

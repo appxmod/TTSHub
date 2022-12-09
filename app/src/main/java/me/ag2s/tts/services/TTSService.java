@@ -16,7 +16,6 @@ import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.os.Build;
 import android.os.PowerManager;
-import android.os.SystemClock;
 import android.speech.tts.SynthesisCallback;
 import android.speech.tts.SynthesisRequest;
 import android.speech.tts.TextToSpeech;
@@ -41,7 +40,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import me.ag2s.tts.APP;
 import me.ag2s.tts.BuildConfig;
@@ -50,7 +48,6 @@ import me.ag2s.tts.R;
 import me.ag2s.tts.utils.ByteArrayMediaDataSource;
 import me.ag2s.tts.utils.SU;
 import me.ag2s.tts.utils.GcManger;
-import okhttp3.CacheControl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -75,6 +72,7 @@ public class TTSService extends TextToSpeechService {
     private WebSocket webSocket;
     private volatile boolean isPreview = false;
     private volatile boolean isSynthesizing = false;
+    private volatile boolean read = false;
     //当前的生成格式
     private volatile TtsOutputFormat currentFormat;
     //当前的数据
@@ -94,91 +92,68 @@ public class TTSService extends TextToSpeechService {
     private SynthesisCallback callback;
     @NonNull
     private final WebSocketListener webSocketListener = new WebSocketListener() {
+		final String TAG = "套接字::";
         @Override
         public void onClosed(@NotNull WebSocket webSocket, int code, @NotNull String reason) {
-            super.onClosed(webSocket, code, reason);
-            Log.e(TAG, "onClosed:" + reason);
-
+			CMN.debug(TAG, "onClosed:", reason);
         }
-
+		
         @Override
         public void onClosing(@NotNull WebSocket webSocket, int code, @NotNull String reason) {
-            super.onClosing(webSocket, code, reason);
-            Log.e(TAG, "onClosing:" + reason);
-
+			CMN.debug(TAG, "TTS服务-错误中 onClosing:" + reason, "isSynthesizing="+isSynthesizing);
             TTSService.this.webSocket = null;
             webSocketState = WebSocketState.OFFLINE;
-
-            CMN.debug("TTS服务-错误中", "isSynthesizing="+isSynthesizing);
             if (isSynthesizing) {
                 TTSService.this.webSocket = getOrCreateWs();
             }
             updateNotification("TTS服务-错误中", reason);
-
-
         }
 
         @Override
         public void onFailure(@NotNull WebSocket webSocket, @NotNull Throwable t, @Nullable Response response) {
-            super.onFailure(webSocket, t, response);
             TTSService.this.webSocket = null;
             webSocketState = WebSocketState.OFFLINE;
-            Log.e(TAG, "onFailure" + t.getMessage(), t);
+			CMN.debug(TAG, "TTS服务-失败中 onFailure" , t.getMessage(), t);
             if (isSynthesizing) {
                 TTSService.this.webSocket = getOrCreateWs();
             }
-            updateNotification("TTS服务-错误中", t.getMessage());
-			CMN.debug("TTS服务-错误中", t);
-
+            updateNotification("TTS服务-失败中", t.getMessage());
             //APP.showToast("发生错误:" + t.getMessage());
-
-
         }
 
         @Override
         public void onMessage(@NotNull WebSocket webSocket, @NotNull String text) {
-            super.onMessage(webSocket, text);
-            //Log.v(TAG, "onMessage" + text);
             final String endTag = "turn.end";
             final String startTag = "turn.start";
             int endIndex = text.lastIndexOf(endTag);
             int startIndex = text.lastIndexOf(startTag);
-            //生成开始
+			
+			CMN.debug(TAG, "onMessage 生成开始 ");
+			//CMN.debug(TAG, "onMessage 生成开始 startIndex=" , startIndex, endIndex, text);
+			
             if (startIndex != -1) {
                 isSynthesizing = true;
                 mData.clear();
+				CMN.debug(TAG, "onMessage 空空 ");
             } else if (endIndex != -1) {
-                if (callback != null && !callback.hasFinished() && isSynthesizing) {
-                    if (!currentFormat.needDecode) {
-                        doUnDecode(callback, currentFormat, mData.readByteString());
-                    } else {
-                        doDecode(callback, currentFormat, mData.readByteString());
-
-                    }
-
-                }
-
-
+				handleDecode(false);
             }
         }
 
         @Override
         public void onMessage(@NotNull WebSocket webSocket, @NotNull ByteString bytes) {
-            super.onMessage(webSocket, bytes);
             //音频数据流标志头
             final String audioTag = "Path:audio\r\n";
             final String startTag = "Content-Type:";
             final String endTag = "\r\nX-StreamId";
-            //Log.e(TAG,bytes.utf8());
-
+            CMN.debug(TAG, "onMessage::bytes::");
             int audioIndex = bytes.lastIndexOf(audioTag.getBytes(StandardCharsets.UTF_8)) + audioTag.length();
             int startIndex = bytes.lastIndexOf(startTag.getBytes(StandardCharsets.UTF_8)) + startTag.length();
             int endIndex = bytes.lastIndexOf(endTag.getBytes(StandardCharsets.UTF_8));
             if (audioIndex != -1 && callback != null) {
-
                 try {
                     String temp = bytes.substring(startIndex, endIndex).utf8();
-                    Log.v(TAG, "当前Mime:" + temp);
+					CMN.debug(TAG, "当前Mime:" + temp);
                     if (temp.startsWith("audio")) {
                         currentMime = temp;
                     } else {
@@ -188,34 +163,65 @@ public class TTSService extends TextToSpeechService {
                         if ("audio/x-wav".equals(currentMime) && bytes.lastIndexOf("RIFF".getBytes(StandardCharsets.UTF_8)) != -1) {
                             //去除WAV文件的文件头，解决播放开头时的杂音
                             audioIndex += 44;
-                            Log.v(TAG, "移除WAV文件头");
+							CMN.debug(TAG, "移除WAV文件头");
                         }
-
-
                     }
                     mData.write(bytes.substring(audioIndex));
-
+					read = true;
                 } catch (Exception e) {
-                    Log.e(TAG, "onMessage Error:", e);
-
-                    //如果出错返回错误
+                    CMN.debug("如果出错返回错误 onMessage Error:", e);
                     if (callback != null) {
                         callback.error();
                     }
                     isSynthesizing = false;
                 }
-
             }
         }
 
         @Override
         public void onOpen(@NotNull WebSocket webSocket, @NotNull Response response) {
-            super.onOpen(webSocket, response);
-            Log.e(TAG, "onOpen" + response.headers());
+			CMN.debug(TAG, "onOpen::", response.headers());
+			if ((""+response.headers()).contains("Connection: Upgrade")) {
+				//webSocket.close(1000, "fastRestaurant");
+				CMN.debug("fastRestaurant");
+				try {
+					Thread.sleep(500);
+				} catch (Exception e) {
+					//CMN.debug(e);
+				}
+				if (isSynthesizing) {
+					if (CMN.now()-startTime>1000) {
+						retry = true;
+					}
+					//isSynthesizing = false;
+				}
+			}
         }
     };
-
-    public TTSService() {
+	
+	private boolean handleDecode(boolean b) {
+		read = false;
+		if(b) CMN.debug(TAG, "retry_decode开始…… ");
+		CMN.debug(TAG, "decode开始…… ");
+		try {
+			if (callback != null && !callback.hasFinished() && isSynthesizing) {
+				if (!currentFormat.needDecode) {
+					doUnDecode(callback, currentFormat, mData.readByteString());
+					return true;
+				} else {
+					doDecode(callback, currentFormat, mData.readByteString());
+					return true;
+				}
+			}
+		} catch (Exception e) {
+			CMN.debug(e);
+		}
+		CMN.debug(TAG, "啥也没解");
+		isSynthesizing = false;
+		return false;
+	}
+	
+	public TTSService() {
         client = getOkHttpClient();
     }
 
@@ -375,7 +381,7 @@ public class TTSService extends TextToSpeechService {
 
                 oldMime = mime;
             } catch (IOException ioException) {
-                //设备无法创建，直接抛出
+				CMN.debug("设备无法创建，直接抛出");
                 ioException.printStackTrace();
                 throw new RuntimeException(ioException);
             }
@@ -388,16 +394,17 @@ public class TTSService extends TextToSpeechService {
 
     private synchronized void doDecode(@NonNull SynthesisCallback cb, @SuppressWarnings("unused") @NonNull TtsOutputFormat format, @NonNull ByteString data) {
         isSynthesizing = true;
+		byte[] byteArray = null;
         try {
             MediaExtractor mediaExtractor = new MediaExtractor();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 //在高版本上使用自定义MediaDataSource
-                mediaExtractor.setDataSource(new ByteArrayMediaDataSource(data.toByteArray()));
+				byteArray = data.toByteArray();
+                mediaExtractor.setDataSource(new ByteArrayMediaDataSource(byteArray));
             } else {
                 //在低版本上使用Base64音频数据
                 mediaExtractor.setDataSource("data:" + currentMime + ";base64," + data.base64());
             }
-
 
             //找到音频流的索引
             int audioTrackIndex = -1;
@@ -409,28 +416,26 @@ public class TTSService extends TextToSpeechService {
 
                 if (!TextUtils.isEmpty(mime) && mime.startsWith("audio")) {
                     audioTrackIndex = i;
-                    Log.d(TAG, "找到音频流的索引为：" + audioTrackIndex);
-                    Log.d(TAG, "找到音频流的mime为：" + mime);
+                    CMN.debug(TAG, "找到音频流::索引为：" + audioTrackIndex+"/"+mediaExtractor.getTrackCount());
+                    CMN.debug(TAG, "找到音频流::mime为：" + mime);
+                    CMN.debug(TAG, "找到音频流::时长为：" + trackFormat.getLong(MediaFormat.KEY_DURATION));
+					printAlLDur(mediaExtractor);
                     break;
                 }
             }
             //没有找到音频流的情况下
             if (audioTrackIndex == -1) {
-                Log.e(TAG, "initAudioDecoder: 没有找到音频流");
+                CMN.debug(TAG, "initAudioDecoder: 没有找到音频流");
                 updateNotification("TTS服务-错误中", "没有找到音频流");
                 cb.done();
                 isSynthesizing = false;
                 return;
             }
 
-            //Log.e("Track", trackFormat.toString());
-
-
+            //CMN.debug("Track", trackFormat.toString());
             //opus的音频必须设置这个才能正确的解码
             if ("audio/opus".equals(mime)) {
                 //Log.d(TAG, ByteString.of(trackFormat.getByteBuffer("csd-0")).hex());
-
-
                 Buffer buf = new Buffer();
                 // Magic Signature：固定头，占8个字节，为字符串OpusHead
                 buf.write("OpusHead".getBytes(StandardCharsets.UTF_8));
@@ -478,11 +483,11 @@ public class TTSService extends TextToSpeechService {
 
             MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
             ByteBuffer inputBuffer;
-            long TIME_OUT_US = 10000;
+            long TIME_OUT_US = 10000; // 15000
+			CMN.debug("isSynthesizing::", isSynthesizing);
             while (isSynthesizing) {
                 //获取可用的inputBuffer，输入参数-1代表一直等到，0代表不等待，10*1000代表10秒超时
                 //超时时间10秒
-
 
                 int inputIndex = mediaCodec.dequeueInputBuffer(TIME_OUT_US);
                 if (inputIndex < 0) {
@@ -500,7 +505,7 @@ public class TTSService extends TextToSpeechService {
                 }
                 //从流中读取的采用数据的大小
                 int sampleSize = mediaExtractor.readSampleData(inputBuffer, 0);
-
+				
                 if (sampleSize > 0) {
                     bufferInfo.size = sampleSize;
                     //入队解码
@@ -508,10 +513,12 @@ public class TTSService extends TextToSpeechService {
                     //移动到下一个采样点
                     mediaExtractor.advance();
                 } else {
-                    break;
+					CMN.debug("sampleSize<=0", sampleSize);
+                    if(sampleSize<0) break;
+					continue;
                 }
 
-                //取解码后的数据
+				//CMN.debug("取解码后的数据……");
                 int outputIndex = mediaCodec.dequeueOutputBuffer(bufferInfo, TIME_OUT_US);
                 //不一定能一次取完，所以要循环取
                 ByteBuffer outputBuffer;
@@ -531,28 +538,52 @@ public class TTSService extends TextToSpeechService {
                 }
             }
             mediaCodec.reset();
-
+	
+			CMN.debug("cb.done::isSynthesizing::", isSynthesizing);
             cb.done();
             isSynthesizing = false;
-
         } catch (Exception e) {
-            Log.e(TAG, "doDecode", e);
-            cb.error();
+            CMN.debug("doDecode::", e);
+			if ((e.getMessage()+"").contains("instantiate")) {
+				CMN.debug("instantiate fail::", byteArray==null?-1:byteArray.length, byteArray==null?null:new String(byteArray));
+			}
+			cb.done(); // done
             isSynthesizing = false;
             //GcManger.getInstance().doGC();
         }
     }
-
-
-    private synchronized void doUnDecode(@NonNull SynthesisCallback cb, @SuppressWarnings("unused") @NonNull TtsOutputFormat format, @NonNull ByteString data) {
+	
+	private void printAlLDur(MediaExtractor mediaExtractor) {
+		int audioTrackIndex = -1;
+		String mime = null;
+		MediaFormat trackFormat = null;
+		for (int i = 0; i < mediaExtractor.getTrackCount(); i++) {
+			trackFormat = mediaExtractor.getTrackFormat(i);
+			mime = trackFormat.getString(MediaFormat.KEY_MIME);
+			if (!TextUtils.isEmpty(mime) && mime.startsWith("audio")) {
+				if (audioTrackIndex == -1) {
+					audioTrackIndex = i;
+				} else {
+					CMN.debug(TAG, "其他音频流::索引为：" + audioTrackIndex+"/"+mediaExtractor.getTrackCount());
+					CMN.debug(TAG, "其他音频流::mime为：" + mime);
+					CMN.debug(TAG, "其他音频流::时长为：" + trackFormat.getLong(MediaFormat.KEY_DURATION));
+				}
+			}
+		}
+	}
+	
+	
+	private synchronized void doUnDecode(@NonNull SynthesisCallback cb, @SuppressWarnings("unused") @NonNull TtsOutputFormat format, @NonNull ByteString data) {
         isSynthesizing = true;
         int length = data.toByteArray().length;
         //最大BufferSize
         final int maxBufferSize = cb.getMaxBufferSize();
         int offset = 0;
+		CMN.debug("doUnDecode maxBufferSize="+maxBufferSize, "length="+length);
         while (offset < length && isSynthesizing) {
             int bytesToWrite = Math.min(maxBufferSize, length - offset);
             cb.audioAvailable(data.toByteArray(), offset, bytesToWrite);
+			CMN.debug("bytesToWrite="+bytesToWrite);
             offset += bytesToWrite;
         }
         cb.done();
@@ -582,9 +613,11 @@ public class TTSService extends TextToSpeechService {
             if (APP.getBoolean(Constants.USE_PREVIEW, false)) {
 //                url = "wss://eastus.tts.speech.microsoft.com/cognitiveservices/websocket/v1?Authorization=bearer " + TokenHolder.token + "&X-ConnectionId=" + SU.getMD5String(new Date().toString());
 //                url = "wss://eastus.api.speech.microsoft.com/cognitiveservices/websocket/v1?TrafficType=AzureDemo&Authorization=bearer undefined&X-ConnectionId=" + SU.getMD5String(new Date().toString());
-//                url = "wss://eastasia.api.speech.microsoft.com/cognitiveservices/websocket/v1?TrafficType=AzureDemo&Authorization=bearer undefined&X-ConnectionId=" + SU.getMD5String(new Date().toString());
+                  url = "wss://eastasia.api.speech.microsoft.com/cognitiveservices/websocket/v1?TrafficType=AzureDemo&Authorization=bearer undefined&X-ConnectionId=" + SU.getMD5String(new Date().toString());
+//                url = "wss://swedencentral.api.speech.microsoft.com/cognitiveservices/websocket/v1?TrafficType=AzureDemo&Authorization=bearer undefined&X-ConnectionId=" + SU.getMD5String(new Date().toString());
 //                url = "wss://japaneast.api.speech.microsoft.com/cognitiveservices/websocket/v1?TrafficType=AzureDemo&Authorization=bearer undefined&X-ConnectionId=" + SU.getMD5String(new Date().toString());
-                url = "wss://koreacentral.api.speech.microsoft.com/cognitiveservices/websocket/v1?TrafficType=AzureDemo&Authorization=bearer undefined&X-ConnectionId=" + SU.getMD5String(new Date().toString());
+                url = "wss://centralindia.api.speech.microsoft.com/cognitiveservices/websocket/v1?TrafficType=AzureDemo&Authorization=bearer undefined&X-ConnectionId=" + SU.getMD5String(new Date().toString());
+//                url = "wss://koreacentral.api.speech.microsoft.com/cognitiveservices/websocket/v1?TrafficType=AzureDemo&Authorization=bearer undefined&X-ConnectionId=" + SU.getMD5String(new Date().toString());
                 origin = "https://azure.microsoft.com";
                 isPreview = true;
             } else {
@@ -598,9 +631,9 @@ public class TTSService extends TextToSpeechService {
                     //.header("Accept-Encoding", "gzip, deflate")
                     .header("User-Agent", Constants.EDGE_UA)
                     .addHeader("Origin", origin)
-					.cacheControl(new CacheControl.Builder()
-							.maxAge(0, TimeUnit.SECONDS)
-							.maxStale(365,TimeUnit.DAYS).build())
+//					.cacheControl(new CacheControl.Builder()
+//							.maxAge(0, TimeUnit.SECONDS)
+//							.maxStale(365,TimeUnit.DAYS).build())
 					//.header("Cache-Control", "public, only-if-cached, max-stale=" + maxStale)
                     .build();
             webSocketState = WebSocketState.CONNECTING;
@@ -623,16 +656,12 @@ public class TTSService extends TextToSpeechService {
                 "Path:speech.config\r\n\r\n"
                 + ttsConfig;
         this.currentFormat = ttsConfig.getFormat();
-        ws.send(msg);
-
+		CMN.debug("sendConfig::sending……", msg);
+        ws_send(ws, msg);
     }
-
-
-    /**
-     * 发送合成text请求
-     *
-     * @param sReq 需要合成的txt
-     */
+	
+	
+	/** 发送合成text请求 */
     public synchronized void sendText(@NonNull SyntheticalRequest sReq, @NonNull SynthesisCallback callback) {
 //
 //        Bundle bundle = request.getParams();
@@ -650,12 +679,28 @@ public class TTSService extends TextToSpeechService {
         this.currentFormat = ttsConfig.getFormat();
         this.callback = callback;
         reNewWakeLock();
-
+	
+		CMN.debug("request_getLanguage::", request.getLanguage(), request.getCountry());
 
         String name = request.getVoiceName();
         if (APP.getBoolean(Constants.USE_CUSTOM_VOICE, true)) {
             name = APP.getString(Constants.CUSTOM_VOICE, "zh-CN-XiaoxiaoNeural");
+			if("zho".equals(request.getLanguage())) {
+				if (!name.contains("zh-"))
+				{
+					name = "zh-CN-XiaoshuangNeural";
+					name = "zh-CN-XiaoxiaoNeural";
+				}
+			}
+			if ("eng".equals(request.getLanguage())) {
+				if(!name.contains("en-"))
+				{
+					name = "en-US-AriaNeural";
+				}
+			}
         }
+		CMN.debug("tts_voice_name="+name);
+		
         int styleIndex = APP.getInt(Constants.VOICE_STYLE_INDEX, 0);
         TtsStyle ttsStyle = TtsStyleManger.getInstance().get(styleIndex);
         ttsStyle.setStyleDegree(APP.getInt(Constants.VOICE_STYLE_DEGREE, 100));
@@ -669,87 +714,125 @@ public class TTSService extends TextToSpeechService {
             oldFormatIndex = index;
         }
         SSML ssml = SSML.getInstance(sReq, name, ttsStyle, useDict, isPreview);
-        CMN.debug(ssml.toString());
         //在Google Play图书之类应用会闪退，应该及时调用该方法
         callback.start(currentFormat.HZ,
                 currentFormat.BitRate, 1 /* Number of channels. */);
-
+	
+		String retext = ssml.toString();
         try {
-            boolean success = getOrCreateWs().send(ssml.toString());
-            //Log.e(TAG,"SSS:"+success);
+            boolean success = sendRequest(retext);
+			//CMN.debug(retext,"SSS:"+success);
             if (!success && isSynthesizing) {
+				CMN.debug("TTS服务-重试中", "第一次发送不成功，正在重试第二次");
+				try {
+					Thread.sleep(500);
+				} catch (Exception e) {
+					CMN.debug(e);
+				}
                 updateNotification("TTS服务-重试中", "第一次发送不成功，正在重试第二次");
-                getOrCreateWs().send(ssml.toString());
+				sendRequest(retext);
             }
         } catch (Exception e) {
 			CMN.debug(e);
             getOrCreateWs();
             while (this.webSocket == null) {
                 try {
+					CMN.debug("wait::webSocket == null");
                     this.wait(500);
                 } catch (Exception ignored) {
                 }
             }
-            getOrCreateWs().send(ssml.toString());
-
+			sendRequest(retext);
         }
-
-
     }
-
-
-    public static int getIsLanguageAvailable(String lang, String country, String variant) {
-        Locale locale = new Locale(lang, country, variant);
-        boolean isLanguage = false;
-        boolean isCountry = false;
-        for (String lan : Constants.supportedLanguages) {
-            String[] temp = lan.split("-");
-            Locale locale1 = new Locale(temp[0], temp[1]);
-            if (locale.getISO3Language().equals(locale1.getISO3Language())) {
-                isLanguage = true;
-            }
-            if (isLanguage && locale.getISO3Country().equals(locale1.getISO3Country())) {
-                isCountry = true;
-            }
-            if (isCountry && locale.getVariant().equals(locale1.getVariant())) {
-                return TextToSpeech.LANG_COUNTRY_VAR_AVAILABLE;
-            }
-
-        }
-        if (isCountry) {
-            return TextToSpeech.LANG_COUNTRY_AVAILABLE;
-        }
-        if (isLanguage) {
-            return TextToSpeech.LANG_AVAILABLE;
-        }
-        return TextToSpeech.LANG_NOT_SUPPORTED;
-    }
-
-
+	
+	
+	boolean sendRequest(String request) {
+		CMN.debug("\nsending……\nsending……", request);
+		return ws_send(getOrCreateWs() , request);
+	}
+	
+	long lastSentm = 0;
+	
+	private boolean ws_send(WebSocket ws, String msg) {
+		if (CMN.now()-lastSentm<375) {
+			CMN.debug("发送太频繁,等等\n等等\n等等\n");
+			try {
+				Thread.sleep((long) (Math.random() * 100 + 550));
+			} catch (Exception e) {
+			}
+		}
+		lastSentm = CMN.now();
+		return ws.send(msg);
+	}
+	
+	/**
+	 * 设置该语言，并返回是否是否支持该语言。
+	 * Note that this method is synchronized, as is onSynthesizeText because
+	 * onLoadLanguage can be called from multiple threads (while onSynthesizeText
+	 * is always called from a single thread only).
+	 */
+	@Override
+	protected int onLoadLanguage(String _lang, String _country, String _variant) {
+		CMN.debug("onLoadLanguage", "_lang = [" + _lang + "], _country = [" + _country + "], _variant = [" + _variant + "]");
+		String lang = _lang == null ? "" : _lang;
+		String country = _country == null ? "" : _country;
+		String variant = _variant == null ? "" : _variant;
+		int result = onIsLanguageAvailable(lang, country, variant);
+		if (result == TextToSpeech.LANG_COUNTRY_AVAILABLE
+				|| TextToSpeech.LANG_AVAILABLE == result
+				|| result == TextToSpeech.LANG_COUNTRY_VAR_AVAILABLE) {
+			mCurrentLanguage = new String[]{lang, country, variant};
+		}
+		return result;
+	}
+	
     /**
      * 是否支持该语言。语言通过lang、country、variant这三个Locale的字段来表示，意思分别是语言、国家和地区，
      * 比如zh-CN表示大陆汉语。（ISO 639-1、ISO 639-2）。
      */
     @Override
     protected int onIsLanguageAvailable(String lang, String country, String variant) {
-        return getIsLanguageAvailable(lang, country, variant);
-
+		CMN.debug("onIsLanguageAvailable", "lang = [" + lang + "], country = [" + country + "], variant = [" + variant + "]");
+		Locale locale = new Locale(lang, country, variant);
+		boolean isLanguage = false;
+		boolean isCountry = false;
+		for (String lan : Constants.supportedLanguages) {
+			String[] temp = lan.split("-");
+			Locale locale1 = new Locale(temp[0], temp[1]);
+			if (locale.getISO3Language().equals(locale1.getISO3Language())) {
+				isLanguage = true;
+			}
+			if (isLanguage && locale.getISO3Country().equals(locale1.getISO3Country())) {
+				isCountry = true;
+			}
+			if (isCountry && locale.getVariant().equals(locale1.getVariant())) {
+				return TextToSpeech.LANG_COUNTRY_VAR_AVAILABLE;
+			}
+		}
+		if (isCountry) {
+			return TextToSpeech.LANG_COUNTRY_AVAILABLE;
+		}
+		if (isLanguage) {
+			return TextToSpeech.LANG_AVAILABLE;
+		}
+		return TextToSpeech.LANG_AVAILABLE;
     }
-
-    /**
-     * 获取当前引擎所设置的语言信息，返回值格式为{lang,country,variant}。
-     *
-     * @return String[] {lang,country,variant}。
-     */
-    @Override
-    protected String[] onGetLanguage() {
-        // Note that mCurrentLanguage is volatile because this can be called from
-        // multiple threads.
-
-        return mCurrentLanguage;
-    }
-
-    @Override
+	
+	/**
+	 * 获取当前引擎所设置的语言信息，返回值格式为{lang,country,variant}。
+	 *
+	 * @return String[] {lang,country,variant}。
+	 */
+	@Override
+	protected String[] onGetLanguage() {
+		// Note that mCurrentLanguage is volatile because this can be called from
+		// multiple threads.
+		CMN.debug("onGetLanguage");
+		return mCurrentLanguage;
+	}
+	
+	@Override
     public List<Voice> onGetVoices() {
         List<android.speech.tts.Voice> voices = new ArrayList<>();
         for (TtsActor voice : TtsActorManger.getInstance().getActors()) {
@@ -758,7 +841,9 @@ public class TTSService extends TextToSpeechService {
             Locale locale = voice.getLocale();
 
             Set<String> features = onGetFeaturesForLanguage(locale.getLanguage(), locale.getCountry(), locale.getVariant());
-            //Log.e(TAG, features.toString());
+			
+			//CMN.debug("onGetVoices::", voice.getShortName(), voice.getLocale(), quality, latency);
+			
             voices.add(new android.speech.tts.Voice(voice.getShortName(), voice.getLocale(), quality, latency, true, features));
         }
         return voices;
@@ -822,25 +907,6 @@ public class TTSService extends TextToSpeechService {
 
 
     /**
-     * 设置该语言，并返回是否是否支持该语言。
-     * Note that this method is synchronized, as is onSynthesizeText because
-     * onLoadLanguage can be called from multiple threads (while onSynthesizeText
-     * is always called from a single thread only).
-     */
-    @Override
-    protected int onLoadLanguage(String _lang, String _country, String _variant) {
-        String lang = _lang == null ? "" : _lang;
-        String country = _country == null ? "" : _country;
-        String variant = _variant == null ? "" : _variant;
-        int result = onIsLanguageAvailable(lang, country, variant);
-        if (result == TextToSpeech.LANG_COUNTRY_AVAILABLE || TextToSpeech.LANG_AVAILABLE == result || result == TextToSpeech.LANG_COUNTRY_VAR_AVAILABLE) {
-            mCurrentLanguage = new String[]{lang, country, variant};
-        }
-
-        return result;
-    }
-
-    /**
      * 停止tts播放或合成。
      */
     @Override
@@ -857,11 +923,13 @@ public class TTSService extends TextToSpeechService {
 	
 	public static class SyntheticalRequest {
 		final SynthesisRequest request;
+		final SynthesisCallback callback;
 		final CharSequence text;
 		String id;
 		StringBuilder sb = new StringBuilder();
-		public SyntheticalRequest(SynthesisRequest request) {
+		public SyntheticalRequest(SynthesisRequest request, SynthesisCallback callback) {
 			this.request = request;
+			this.callback = callback;
 			this.text = request.getCharSequenceText();
 		}
 		
@@ -927,56 +995,85 @@ public class TTSService extends TextToSpeechService {
      */
     @Override
     protected void onSynthesizeText(@NonNull SynthesisRequest request, @NonNull SynthesisCallback callback) {
-
-        int load = onLoadLanguage(request.getLanguage(), request.getCountry(),
-                request.getVariant());
+        int load = onLoadLanguage(request.getLanguage(), request.getCountry(), request.getVariant());
         if (load == TextToSpeech.LANG_NOT_SUPPORTED) {
             callback.error(TextToSpeech.ERROR_INVALID_REQUEST);
             CMN.debug("语言不支持:" + request.getLanguage());
             return;
         }
-
-		final SyntheticalRequest sReq = new SyntheticalRequest(request);
+		final SyntheticalRequest sReq = new SyntheticalRequest(request, callback);
 		
-        isSynthesizing = true;
-        if (SU.isNoVoice(sReq.text)) {
-			CMN.debug("判断是否全是不发声字符，如果是，直接跳过");
-            callback.start(16000,
-                    AudioFormat.ENCODING_PCM_16BIT, 1 /* Number of channels. */);
-            callback.done();
-            isSynthesizing = false;
-            return;
-        }
-        //使用System.nanoTime()来保证获得的是精准的时间间隔
-        long startTime = SystemClock.elapsedRealtime();
-
-        synchronized (TTSService.this) {
-            isSynthesizing = true;
-            sendText(sReq, callback);
-	
-			String notes = sReq.makeNotification();
-			CMN.debug("TTS服务-生成中", notes);
-			updateNotification("TTS服务-生成中", notes);
-
-            while (isSynthesizing) {
-                try {
-                    this.wait(100);
-                } catch (InterruptedException e) {
-                    CMN.debug(e);
-                }
-                long time = SystemClock.elapsedRealtime() - startTime;
-                if (time > 50000) {
-					CMN.debug("超时50秒后跳过,保证长句不会被跳过");
-                    callback.done();
-                    isSynthesizing = false;
-                }
-            }
-
-        }
-        isSynthesizing = false;
-
-        CMN.debug("TTS服务-闲置中", "当前没有生成任务");
+        handleSynth(sReq);
     }
-
-
+	
+	boolean retry = false;
+	int retry_cnt = 0;
+	long startTime;
+	
+	private void handleSynth(SyntheticalRequest sReq) {
+		SynthesisCallback callback = sReq.callback;
+		isSynthesizing = true;
+		if (SU.isNoVoice(sReq.text)) {
+			CMN.debug("判断是否全是不发声字符，如果是，直接跳过");
+			callback.start(16000,
+					AudioFormat.ENCODING_PCM_16BIT, 1 /* Number of channels. */);
+			callback.done();
+			isSynthesizing = false;
+			return;
+		}
+		//使用System.nanoTime()来保证获得的是精准的时间间隔
+		startTime = CMN.now();
+		
+		synchronized (TTSService.this) {
+			isSynthesizing = true;
+			
+			sendText(sReq, callback);
+			
+			String notes = sReq.makeNotification();
+			CMN.debug("TTS服务-生成中", notes, startTime/100*100);
+			updateNotification("TTS服务-生成中", notes);
+			
+			retry = false;
+			retry_cnt = 0;
+			read = false;
+			while (isSynthesizing) {
+				if (retry) {
+					if (read && handleDecode(true)) {
+						// intentionally blank
+					} else {
+						try {
+							this.wait((long) (250+Math.random()*100*(retry_cnt+1)));
+						} catch (InterruptedException e) {
+							//CMN.debug(e);
+						}
+						if (retry_cnt++<2) {
+							CMN.debug("如果能重来……\n重来……\n重来……\n");
+							sendText(sReq, callback);
+							retry = false;
+						} else {
+							CMN.debug("我要当李白……\n李白……\n李白……\n");
+							callback.done();
+							isSynthesizing = false;
+						}
+					}
+				}
+				try {
+					this.wait(100);
+				} catch (InterruptedException e) {
+					CMN.debug(e);
+				}
+				long time = System.currentTimeMillis() - startTime;
+				if (time > 50000) {
+					CMN.debug("超时50秒后跳过,保证长句不会被跳过");
+					callback.done();
+					isSynthesizing = false;
+				}
+			}
+		}
+		isSynthesizing = false;
+		
+		CMN.debug("TTS服务-闲置中", "当前没有生成任务", CMN.now()/100*100);
+	}
+	
+	
 }

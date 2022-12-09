@@ -80,10 +80,10 @@ public class APP extends Application {
                 if (okHttpClient == null) {
 
                     okHttpClient = new OkHttpClient.Builder()
-                            .cookieJar(new PersistentCookieJar(new SetCookieCache(),
-                                    new SharedPrefsCookiePersistor(getContext())))
-                            //.pingInterval(20, TimeUnit.SECONDS) // 设置 PING 帧发送间隔
-                            //.fastFallback(true)
+//                            .cookieJar(new PersistentCookieJar(new SetCookieCache(),
+//                                    new SharedPrefsCookiePersistor(getContext())))
+                            .pingInterval(20, TimeUnit.SECONDS) // 设置 PING 帧发送间隔
+//                            .fastFallback(true)
 //                            .dns(s -> {
 ////                                if("speech.platform.bing.com".equals(s)){
 ////                                    s="cn.bing.com";
